@@ -93,8 +93,7 @@ class FastFitFileProcessor:
                 
                 # Calculate all timestamps for this group at once
                 base_timestamp = datetime.datetime.fromtimestamp(base_timestamp_ms / 1000.0)
-                timestamps = [base_timestamp + datetime.timedelta(milliseconds=offset) 
-                            for offset in sample_offsets]
+                timestamps = [base_timestamp + datetime.timedelta(milliseconds=offset) for offset in sample_offsets]
                 
                 # Extend our lists
                 all_timestamps.extend(timestamps)
