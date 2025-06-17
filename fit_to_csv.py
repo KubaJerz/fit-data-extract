@@ -15,10 +15,14 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Any
+import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import time
 
 from garmin_fit_sdk import Decoder, Stream
+
+VALID_SELF_REPORT_EVENT_TYPES = {1, 2} # 1 == "cigarette"  2 == "vape"
+
 
 
 class FastFitFileProcessor:
@@ -116,6 +120,22 @@ class FastFitFileProcessor:
         
         return df
     
+    def _process_self_reports(self, timestamp, event_type, df_event_self_reports, is_event_active, is_event_active_Field):
+        if event_type in VALID_SELF_REPORT_EVENT_TYPES:
+
+            if (not is_event_active) and (is_event_active_Field == 1): #just switched the event on
+                with warnings.catch_warnings():
+                    warnings.simplefilter(action='ignore', category=FutureWarning)
+                    df_event_self_reports = pd.concat([df_event_self_reports, pd.DataFrame([{'start_timestamp': timestamp, 'end_timestamp': 'NAN', 'event_type':event_type}])], ignore_index=True )
+                
+                is_event_active =  True
+
+            elif (is_event_active) and (is_event_active_Field == 0): #jsut switched the even off
+                df_event_self_reports.at[df_event_self_reports.index[-1], 'end_timestamp'] = timestamp
+                is_event_active = False
+
+        return df_event_self_reports, is_event_active
+
     def _extract_record_data_fast(self) -> Optional[pd.DataFrame]:
         """
         Extract record data using pandas for faster processing.
@@ -133,7 +153,11 @@ class FastFitFileProcessor:
         timestamps = []
         heart_rates = []
         developer_fields = []
-        
+
+        #df for self reports
+        df_event_self_reports = pd.DataFrame(columns=['start_timestamp', 'end_timestamp', 'event_type'])
+        is_event_active = False
+
         for record in record_messages:
             try:
                 # Get timestamp
@@ -159,6 +183,12 @@ class FastFitFileProcessor:
                 timestamps.append(timestamp)
                 heart_rates.append(heart_rate)
                 developer_fields.append(str(dev_field) if dev_field is not None else None)
+
+                #process the self reports
+                is_event_active_Field =  dev_fields[1] #is_event_active_Field this valie is one if we are recroding and anythin else if we are not recording
+                event_type = dev_fields[2] # event type
+                df_event_self_reports, is_event_active = self._process_self_reports(timestamp, event_type, df_event_self_reports, is_event_active, is_event_active_Field)
+
                 
             except Exception:
                 continue
@@ -167,13 +197,13 @@ class FastFitFileProcessor:
             return None
         
         # Create DataFrame
-        df = pd.DataFrame({
+        df_records = pd.DataFrame({
             'timestamp': timestamps,
             'heart_rate': heart_rates,
             'developer_field': developer_fields
         })
         
-        return df
+        return df_records, df_event_self_reports
     
     def process_to_csv(self, output_dir: Path) -> Tuple[Optional[Path], Optional[Path], Optional[Path]]:
         """Process the FIT file and save data to CSV files using pandas."""
@@ -187,6 +217,8 @@ class FastFitFileProcessor:
         accel_csv_path = output_dir / f"{base_name}_accelerometer.csv"
         gyro_csv_path = output_dir / f"{base_name}_gyroscope.csv"
         record_csv_path = output_dir / f"{base_name}_records.csv"
+        self_report_csv_path = output_dir / f"{base_name}_self_reports.csv"
+
         
         paths = []
         
@@ -208,12 +240,22 @@ class FastFitFileProcessor:
         else:
             paths.append(None)
         
-        # Process record data
-        record_df = self._extract_record_data_fast()
+        # Process record data and self reports
+        record_df, self_report_event_df = self._extract_record_data_fast()
+        
+        #save records df
         if record_df is not None:
             record_df.to_csv(record_csv_path, index=False, na_rep='')
             print(f"Wrote {len(record_df)} record samples to {record_csv_path.name}")
             paths.append(record_csv_path)
+        else:
+            paths.append(None)
+
+        #save self reports
+        if self_report_event_df is not None:
+            self_report_event_df.to_csv(self_report_csv_path, index=False, na_rep='')
+            print(f"Wrote {len(self_report_event_df)} self report to {self_report_csv_path.name}")
+            paths.append(self_report_csv_path)
         else:
             paths.append(None)
         
@@ -295,7 +337,8 @@ class FastFitToCsvPipeline:
         print(f"Successfully processed {success_count}/{len(fit_files)} files.")
 
 
-def main():
+def main(): 
+
     """Main entry point for the script."""
     if len(sys.argv) < 2:
         print("Usage: python fit_to_csv_converter_fast.py /path/to/fit/files [--no-multiprocessing]")
