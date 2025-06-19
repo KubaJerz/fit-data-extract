@@ -72,7 +72,7 @@ for file in "${files[@]}"; do
     else
 	# Check if this file belongs to current group (within 300 seconds (5min) + 2 sec)
         time_diff=$((current_seconds - last_seconds))
-        if [ $time_diff -le 302 ] && [ $time_diff -ge 300 ]; then
+        if [ $time_diff -le 10802 ] && [ $time_diff -ge 10800 ]; then
             # Add to current group
             current_group+=("$filename")
             last_seconds=$current_seconds
@@ -119,7 +119,7 @@ if [[ "$response" =~ ^[Yy]$ ]]; then
 	group_files=(${groups[i]})
 	first_file="${group_files[0]}"
 	group_dir=$(extract_timestamp "$first_file")
-	group_dir_path="$DIR_PATH/$group_dir"
+	group_dir_path="$DIR_PATH$group_dir"
 
 	#check that the dir does not exist
 	if [ -d "$group_dir_path" ]; then
@@ -133,7 +133,7 @@ if [[ "$response" =~ ^[Yy]$ ]]; then
         echo "Moving ${#group_files[@]} files to $group_dir"
         
         for file in "${group_files[@]}"; do
-            mv "$DIR_PATH/$file" "$group_dir/"
+            mv "$DIR_PATH$file" "$DIR_PATH$group_dir/"
         done
     done
     
