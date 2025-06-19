@@ -57,9 +57,9 @@ if [ "$subdirs_found" = false ]; then
     echo "Warning: No subdirectories found in $DIR_PATH"
 fi
 
-end_time=$(date +"s%")
+end_time=$(date +"%s")
 elapsed_time=$((end_time - start_time))
 elapsed_hours=$(echo "scale=2; $elapsed_time / 3600" | bc)
 
 echo "=========================================="
-echo "All operations completed successfully in total time of: "
+echo "All operations completed successfully in total time of: $elapsed_hours hours"

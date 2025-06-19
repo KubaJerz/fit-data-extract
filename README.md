@@ -1,7 +1,7 @@
 # fit-data-extract
 Pipline to retreve .FIT files from garmin watch and convert then into .csv files
 
-## How to run whoel pipline:
+## How to run whole pipline:
 
 1. Make sure to separte files via watch ID into diffrent dirs
 
